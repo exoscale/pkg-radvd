@@ -1,0 +1,15 @@
+# -*-Mode: Makefile;-*-
+#
+#
+
+debian/copyright: debian/copyright.in COPYRIGHT
+	cat $^ > $@
+
+deb-pre-build: debian/copyright 
+
+deb-extra-clean::
+	rm -f debian/copyright
+
+deb-binary-hook-radvd:
+	install -m 644 debian/radvd.conf `pwd`/debian/radvd/etc
+	dh_installinit --update-rcd-params="defaults 50"
