@@ -1,3 +1,21 @@
+radvd (1:0.7.3-1) unstable; urgency=low
+
+  * New upstream release.
+  * Upload to unstable.
+
+ -- Andreas Rottmann <rotty@debian.org>  Tue, 22 Feb 2005 19:47:02 +0100
+
+radvd (1:0.7.2+0.7.3rc1-1) experimental; urgency=low
+
+  * New upstream release (0.7.3 release candidate).
+    - Fixes hang/sendmsg issue (closes: #287863).
+    - Drop patches integrated upstream: 02-radvd_conf_man.patch.
+  * Now runs as user radvd (closes: #242471).
+  * radvd.init: check for and remove stale pidfile (closes: #293789).
+  * control: tighten dependency on debhelper.
+  
+ -- Andreas Rottmann <rotty@debian.org>  Sat, 19 Feb 2005 12:56:08 +0100
+
 radvd (1:0.7.2-7) unstable; urgency=low
 
   * Fix restart initscript action (closes: #278369).

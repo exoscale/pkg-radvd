@@ -1,5 +1,5 @@
 .\"
-.\"   $Id: radvd.conf.5.man,v 1.7 2002/06/21 11:57:15 psavola Exp $
+.\"   $Id: radvd.conf.5.man,v 1.12 2004/10/26 05:30:34 psavola Exp $
 .\"
 .\"   Authors:
 .\"    Lars Fenneberg		<lf@elemental.net>
@@ -14,7 +14,7 @@
 .\"
 .\"
 .\"
-.TH RADVD.CONF 5 "29 Mar 2001" "radvd @VERSION@" ""
+.TH RADVD.CONF 5 "20 Aug 2004" "radvd @VERSION@" ""
 .SH NAME
 radvd.conf \- configuration file of the router advertisement daemon
 .B radvd
@@ -28,6 +28,7 @@ The file contains one or more interface definitions of the form:
 .BR "interface " "name " {
 	list of interface specific options
 	list of prefix definitions
+	list of route definitions
 .B };
 .fi
 
@@ -49,11 +50,33 @@ extensions.
 All the possible prefix specific options are described below.  Each
 option has to be terminated by a semicolon.
 
-Decimal values are allowed only for MaxRtrAdvInterval and
-MinRtrAdvInterval.  Decimal values should be used only when using
-Mobile IPv6 extensions.
+Decimal values are allowed only for MinDelayBetweenRAs,
+MaxRtrAdvInterval and MinRtrAdvInterval.  Decimal values should
+be used only when using Mobile IPv6 extensions.
+
+Route definitions are of the form:
+
+.nf
+.BR "route " prefix / "length " {
+	list of route specific options
+.B };
+.fi
+
+The prefix of a route definition should be network prefix; it can be used to
+advertise more specific routes to the hosts.
 
 .SH INTERFACE SPECIFIC OPTIONS
+
+.TP
+.BR IgnoreIfMissing " " on | off
+
+A flag indicating whether or not the interface is ignored
+if it does not exist.
+This is useful for dynamic interfaces which are not active when radvd
+starts, but for which you want to already have configuration -- and when
+they become active, you send HUP signal to radvd to activate them.
+
+Default: off
 
 .TP
 .BR AdvSendAdvert " " on | off
@@ -88,7 +111,10 @@ router advertisements from the interface, in seconds.
 
 Must be no less than 4 seconds and no greater than 1800 seconds.
 
-Minimum when using Mobile IPv6 extensions: 1.5.
+Minimum when using Mobile IPv6 extensions: 0.07.
+
+For values less than 0.2 seconds, 0.02 seconds is added to account for
+scheduling granularities as specified in RFC3775.
 
 Default: 600 seconds	
 
@@ -101,9 +127,23 @@ router advertisements from the interface, in seconds.
 Must be no less than 3 seconds and no greater than 0.75 *
 MaxRtrAdvInterval.
 
-Minimum when using Mobile IPv6 extensions: 0.05.
+Minimum when using Mobile IPv6 extensions: 0.03.
 
 Default: 0.33 * MaxRtrAdvInterval
+
+.TP
+.BR "MinDelayBetweenRAs " seconds
+
+The minimum time allowed between sending multicast
+router advertisements from the interface, in seconds.
+
+This applies to solicited multicast RAs.
+This is defined as the protocol constant MIN_DELAY_BETWEEN_RAS in RFC2461.
+MIPv6 redefines this parameter to have a minimum of 0.03 seconds.
+
+Minimum when using Mobile IPv6 extensions: 0.03.
+
+Default: 3 
 
 .TP
 .BR AdvManagedFlag " " on | off
@@ -183,7 +223,15 @@ lifetime fields.
 
 Must be either zero or between MaxRtrAdvInterval and 9000 seconds.
 
-Default: 3 * MaxRtrAdvInterval
+Default: 3 * MaxRtrAdvInterval (Minimum 1 second).
+
+.TP
+.BR AdvDefaultPreference " " low | medium | high
+
+The preference associated with the default router, as either "low",
+"medium", or "high".
+
+Default: medium
 
 .TP
 .BR AdvSourceLLAddress " " on | off
@@ -246,6 +294,10 @@ is included in Router Advertisements.  When set, minimum limits
 specified by Mobile IPv6 are used for MinRtrAdvInterval and
 MaxRtrAdvInterval.
 
+The advertisement interval is based on the configured MaxRtrAdvInterval
+parameter except where this is less than 200ms.  In this case,
+the advertised interval is ( MaxRtrAdvInterval + 20ms ).
+
 Default: off
 
 .SH PREFIX SPECIFIC OPTIONS
@@ -290,7 +342,7 @@ determination.  The symbolic value
 represents infinity (i.e. a value of all one bits (0xffffffff)).
 The valid lifetime is also used by RFC 2462.
 
-Default: infinity
+Default: 2592000 seconds (30 days)
 
 .TP
 .BR "AdvPreferredLifetime " seconds "" | infinity
@@ -341,13 +393,33 @@ For more information on 6to4, see RFC 3056.
 
 Default: 6to4 is not used
 
+.SH ROUTE SPECIFIC OPTIONS
+
+.TP
+.BR "AdvRouteLifetime " seconds "" | infinity
+
+The lifetime associated with the route in units of seconds.
+The symbolic value
+.B infinity
+represents infinity (i.e. a value of all one bits (0xffffffff)).
+
+Default: 3 * MaxRtrAdvInterval
+
+.TP
+.BR AdvRoutePreference " " low | medium | high
+
+The preference associated with the default router, as either "low",
+"medium", or "high".
+
+Default: medium
+
 .SH EXAMPLES
 
 .nf
 interface eth0
 {
         AdvSendAdvert on;
-        prefix fec0:0:0:1::/64
+        prefix 2001:db8:0:1::/64
         {
                 AdvOnLink on;
                 AdvAutonomous on;
@@ -356,7 +428,7 @@ interface eth0
 .fi
 
 It says that router advertisement daemon should advertise
-(AdvSendAdvert on;) the prefix fec0:0:0:1:: which has a lenght of 64
+(AdvSendAdvert on;) the prefix 2001:db8:0:1:: which has a lenght of 64
 on the interface eth0.  Also the prefix should be marked as autonomous
 (AdvAutonomous on;) and as on-link (AdvOnLink on;).  All the other
 options are left on their default values.
@@ -368,7 +440,7 @@ address of interface should be used instead of network prefix:
 interface eth0
 {
         AdvSendAdvert on;
-        prefix fec0:0:0:1::4/64
+        prefix 2001:db8:0:1::4/64
         {
                 AdvOnLink on;
                 AdvAutonomous on;
@@ -381,11 +453,14 @@ For 6to4 support, include the
 .B Base6to4Interface
 option in each prefix section. When using a dynamic IPv4 address, set
 small prefix lifetimes to prevent hosts from retaining unreachable
-prefixes after a new IPv4 address has been assigned.
+prefixes after a new IPv4 address has been assigned.  When advertising to on
+a dynamic interface (e.g., Bluetooth), skip the interface if it is not
+active yet.
 
 .nf
-interface eth0
+interface bnep0
 {
+        IgnoreIfMissing on;
         AdvSendAdvert on;
 
         # Advertise at least every 30 seconds
@@ -409,6 +484,9 @@ Since 6to4 is enabled, the prefix will be advertised as
 ppp0 at configuration time. (IPv6 addresses are written in hexadecimal
 whereas IPv4 addresses are written in decimal, so the IPv4 address
 WW.XX.YY.ZZ in the 6to4 prefix will be represented in hex.)
+
+In this specific case, the configuration scripts should send HUP signal to
+radvd when taking bnep0 up or down to notify about the status.
 
 .SH FILES
 
@@ -441,6 +519,10 @@ RFC 2464, December 1998.
 .PP
 Carpenter B., Moore K., "Connection of IPv6 Domains via IPv4 Clouds",
 RFC 3056, February 2001. (6to4 specification)
+.PP
+Draves, R., Hinden B., "Default Router Preferences, More-Specific Routes,
+and Load Sharing", draft-ietf-ipv6-router-selection-02.txt,
+work-in-progress, June 2002.
 
 .SH "SEE ALSO"
 

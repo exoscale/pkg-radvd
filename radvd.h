@@ -1,5 +1,5 @@
 /*
- *   $Id: radvd.h,v 1.7 2001/11/14 19:58:11 lutchann Exp $
+ *   $Id: radvd.h,v 1.12 2005/02/15 08:32:06 psavola Exp $
  *
  *   Authors:
  *    Pedro Roque		<roque@di.fc.ul.pt>
@@ -54,9 +54,11 @@ struct Interface {
 	int			if_prefix_len;
 	int			if_maxmtu;
 
+	int			IgnoreIfMissing;
 	int			AdvSendAdvert;
 	double			MaxRtrAdvInterval;
 	double			MinRtrAdvInterval;
+	double			MinDelayBetweenRAs;
 	int			AdvManagedFlag;
 	int			AdvOtherConfigFlag;
 	int			AdvLinkMTU;
@@ -64,6 +66,7 @@ struct Interface {
 	int			AdvRetransTimer;
 	int			AdvCurHopLimit;
 	int			AdvDefaultLifetime;
+	int			AdvDefaultPreference;
 	int			AdvSourceLLAddress;
 	int			UnicastOnly;
 
@@ -75,8 +78,10 @@ struct Interface {
 	uint16_t		HomeAgentLifetime;
 
 	struct AdvPrefix	*AdvPrefixList;
+	struct AdvRoute		*AdvRouteList;
 	struct timer_lst	tm;
-	unsigned long		last_multicast;
+	time_t                  last_multicast_sec;
+	suseconds_t             last_multicast_usec;
 	struct Interface	*next;
 
 };
@@ -98,6 +103,18 @@ struct AdvPrefix {
 	int			enabled;
 
 	struct AdvPrefix	*next;
+};
+
+/* More-Specific Routes extensions */
+
+struct AdvRoute {
+	struct in6_addr		Prefix;
+	int			PrefixLen;
+	
+	int			AdvRoutePreference;
+	uint32_t		AdvRouteLifetime;
+
+	struct AdvRoute		*next;
 };
 
 /* Mobile IPv6 extensions */
@@ -124,6 +141,9 @@ int yyparse(void);
 /* scanner.l */
 int yylex(void);
 
+/* radvd.c */
+int check_ip6_forwarding();
+
 /* timer.c */
 void set_timer(struct timer_lst *tm, double);
 void clear_timer(struct timer_lst *tm);
@@ -131,7 +151,7 @@ void init_timer(struct timer_lst *, void (*)(void *), void *);
 
 /* log.c */
 int log_open(int, char *, char*, int);
-int log(int, char *, ...);
+int flog(int, char *, ...);
 int dlog(int, int, char *, ...);
 int log_close(void);
 int log_reopen(void);
@@ -149,6 +169,7 @@ int get_v4addr(const char *, unsigned int *);
 /* interface.c */
 void iface_init_defaults(struct Interface *);
 void prefix_init_defaults(struct AdvPrefix *);
+void route_init_defaults(struct AdvRoute *, struct Interface *);
 int check_iface(struct Interface *);
 
 /* socket.c */

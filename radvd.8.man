@@ -1,5 +1,5 @@
 .\"
-.\"   $Id: radvd.8.man,v 1.6 2001/12/28 08:38:18 psavola Exp $
+.\"   $Id: radvd.8.man,v 1.8 2004/08/20 07:04:07 psavola Exp $
 .\"
 .\"   Authors:
 .\"    Lars Fenneberg		<lf@elemental.net>	 
@@ -81,7 +81,7 @@ Specifies an alternate pidfile. Normally the compiled in default
 .I @PATH_RADVD_PID@
 is used.
 .TP
-.BR "\-m " method, " \-\-method " method
+.BR "\-m " method, " \-\-logmethod " method
 Specifies the logging method to use. Possibly values are:
 .RS
 .TP
@@ -122,11 +122,12 @@ For security reasons,
 must always be used when using
 .IR chrootdir .
 
-Note that this option will not currently work under Linux because
+Note that on Linux
 .I radvd
 requires access to the
 .I /proc
-filesystem.
+filesystem,
+so it is more challenging to set up the chroot environment.
 .TP
 .BR "\-u " username, " \-\-username " username
 If specified, drops root privileges and changes user ID to

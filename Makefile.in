@@ -11,7 +11,7 @@
 # PARTICULAR PURPOSE.
 
 #
-#   $Id: Makefile.am,v 1.1 2001/11/14 19:58:10 lutchann Exp $
+#   $Id: Makefile.am,v 1.2 2004/08/20 07:25:59 psavola Exp $
 #
 #   Authors:
 #    Lars Fenneberg		<lf@elemental.net>	 
@@ -95,12 +95,12 @@ YACC = @YACC@
 
 AUTOMAKE_OPTIONS = 1.2 foreign
 
-DEFS =  -DPATH_RADVD_CONF=\"$(PATH_RADVD_CONF)\" \
+DEFS = -DPATH_RADVD_CONF=\"$(PATH_RADVD_CONF)\" \
 	-DPATH_RADVD_LOG=\"$(PATH_RADVD_LOG)\" -DLOG_FACILITY=$(LOG_FACILITY) \
 	-DPATH_RADVD_PID=\"$(PATH_RADVD_PID)\" \
 	-DVERSION=\"$(VERSION)\" -DINET6=1
 
-INCLUDES =  -I$(srcdir) -I.
+INCLUDES = -I$(srcdir) -I.
 
 ########################################################################
 
@@ -158,13 +158,17 @@ MANS = $(man_MANS)
 
 NROFF = nroff
 DIST_COMMON =  README ./stamp-h.in Makefile.am Makefile.in TODO \
-acconfig.h aclocal.m4 config.guess config.h.in config.sub configure \
-configure.in gram.c install-sh missing mkinstalldirs scanner.c
+aclocal.m4 config.guess config.h.in config.sub configure configure.in \
+gram.c install-sh missing mkinstalldirs scanner.c
 
 
 DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
 
 GZIP_ENV = --best
+DEP_FILES =  .deps/device-bsd44.P .deps/device-common.P \
+.deps/device-linux.P .deps/device.P .deps/gram.P .deps/interface.P \
+.deps/log.P .deps/process.P .deps/radvd.P .deps/radvdump.P .deps/recv.P \
+.deps/scanner.P .deps/send.P .deps/socket.P .deps/timer.P .deps/util.P
 SOURCES = $(radvd_SOURCES) $(EXTRA_radvd_SOURCES) $(radvdump_SOURCES)
 OBJECTS = $(radvd_OBJECTS) $(radvdump_OBJECTS)
 
@@ -172,9 +176,9 @@ all: all-redirect
 .SUFFIXES:
 .SUFFIXES: .S .c .l .man .o .s .y
 $(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4) 
-	cd $(top_srcdir) && $(AUTOMAKE) --foreign --include-deps Makefile
+	cd $(top_srcdir) && $(AUTOMAKE) --foreign Makefile
 
-Makefile: $(srcdir)/Makefile.in  $(top_builddir)/config.status
+Makefile: $(srcdir)/Makefile.in  $(top_builddir)/config.status $(BUILT_SOURCES)
 	cd $(top_builddir) \
 	  && CONFIG_FILES=$@ CONFIG_HEADERS= $(SHELL) ./config.status
 
@@ -201,7 +205,7 @@ $(srcdir)/config.h.in: $(srcdir)/stamp-h.in
 		rm -f $(srcdir)/stamp-h.in; \
 		$(MAKE) $(srcdir)/stamp-h.in; \
 	else :; fi
-$(srcdir)/stamp-h.in: $(top_srcdir)/configure.in $(ACLOCAL_M4) acconfig.h
+$(srcdir)/stamp-h.in: $(top_srcdir)/configure.in $(ACLOCAL_M4) 
 	cd $(top_srcdir) && $(AUTOHEADER)
 	@echo timestamp > $(srcdir)/stamp-h.in 2> /dev/null
 
@@ -238,9 +242,6 @@ uninstall-sbinPROGRAMS:
 	list='$(sbin_PROGRAMS)'; for p in $$list; do \
 	  rm -f $(DESTDIR)$(sbindir)/`echo $$p|sed 's/$(EXEEXT)$$//'|sed '$(transform)'|sed 's/$$/$(EXEEXT)/'`; \
 	done
-
-.c.o:
-	$(COMPILE) -c $<
 
 .s.o:
 	$(COMPILE) -c $<
@@ -414,6 +415,11 @@ distdir: $(DISTFILES)
 	-rm -rf $(distdir)
 	mkdir $(distdir)
 	-chmod 777 $(distdir)
+	here=`cd $(top_builddir) && pwd`; \
+	top_distdir=`cd $(distdir) && pwd`; \
+	distdir=`cd $(distdir) && pwd`; \
+	cd $(top_srcdir) \
+	  && $(AUTOMAKE) --include-deps --build-dir=$$here --srcdir-name=$(top_srcdir) --output-dir=$$top_distdir --foreign Makefile
 	@for file in $(DISTFILES); do \
 	  d=$(srcdir); \
 	  if test -d $$d/$$file; then \
@@ -426,6 +432,37 @@ distdir: $(DISTFILES)
 	done
 	$(MAKE) $(AM_MAKEFLAGS) top_distdir="$(top_distdir)" distdir="$(distdir)" dist-hook
 
+DEPS_MAGIC := $(shell mkdir .deps > /dev/null 2>&1 || :)
+
+-include $(DEP_FILES)
+
+mostlyclean-depend:
+
+clean-depend:
+
+distclean-depend:
+	-rm -rf .deps
+
+maintainer-clean-depend:
+
+%.o: %.c
+	@echo '$(COMPILE) -c $<'; \
+	$(COMPILE) -Wp,-MD,.deps/$(*F).pp -c $<
+	@-cp .deps/$(*F).pp .deps/$(*F).P; \
+	tr ' ' '\012' < .deps/$(*F).pp \
+	  | sed -e 's/^\\$$//' -e '/^$$/ d' -e '/:$$/ d' -e 's/$$/ :/' \
+	    >> .deps/$(*F).P; \
+	rm .deps/$(*F).pp
+
+%.lo: %.c
+	@echo '$(LTCOMPILE) -c $<'; \
+	$(LTCOMPILE) -Wp,-MD,.deps/$(*F).pp -c $<
+	@-sed -e 's/^\([^:]*\)\.o[ 	]*:/\1.lo \1.o :/' \
+	  < .deps/$(*F).pp > .deps/$(*F).P; \
+	tr ' ' '\012' < .deps/$(*F).pp \
+	  | sed -e 's/^\\$$//' -e '/^$$/ d' -e '/:$$/ d' -e 's/$$/ :/' \
+	    >> .deps/$(*F).P; \
+	rm -f .deps/$(*F).pp
 info-am:
 info: info-am
 dvi-am:
@@ -470,25 +507,27 @@ distclean-generic:
 maintainer-clean-generic:
 	-test -z "scannerlgramhgramc$(BUILT_SOURCES)" || rm -f scannerl gramh gramc $(BUILT_SOURCES)
 mostlyclean-am:  mostlyclean-hdr mostlyclean-sbinPROGRAMS \
-		mostlyclean-compile mostlyclean-tags \
+		mostlyclean-compile mostlyclean-tags mostlyclean-depend \
 		mostlyclean-generic
 
 mostlyclean: mostlyclean-am
 
 clean-am:  clean-hdr clean-sbinPROGRAMS clean-compile clean-tags \
-		clean-generic mostlyclean-am
+		clean-depend clean-generic mostlyclean-am
 
 clean: clean-am
 
 distclean-am:  distclean-hdr distclean-sbinPROGRAMS distclean-compile \
-		distclean-tags distclean-generic clean-am
+		distclean-tags distclean-depend distclean-generic \
+		clean-am
 
 distclean: distclean-am
 	-rm -f config.status
 
 maintainer-clean-am:  maintainer-clean-hdr maintainer-clean-sbinPROGRAMS \
 		maintainer-clean-compile maintainer-clean-tags \
-		maintainer-clean-generic distclean-am
+		maintainer-clean-depend maintainer-clean-generic \
+		distclean-am
 	@echo "This command is intended for maintainers to use;"
 	@echo "it deletes files that may require special tools to rebuild."
 
@@ -502,12 +541,13 @@ install-sbinPROGRAMS mostlyclean-compile distclean-compile \
 clean-compile maintainer-clean-compile install-man5 uninstall-man5 \
 install-man8 uninstall-man8 install-man uninstall-man tags \
 mostlyclean-tags distclean-tags clean-tags maintainer-clean-tags \
-distdir info-am info dvi-am dvi check check-am installcheck-am \
-installcheck all-recursive-am install-exec-am install-exec \
-install-data-am install-data install-am install uninstall-am uninstall \
-all-redirect all-am all installdirs mostlyclean-generic \
-distclean-generic clean-generic maintainer-clean-generic clean \
-mostlyclean distclean maintainer-clean
+distdir mostlyclean-depend distclean-depend clean-depend \
+maintainer-clean-depend info-am info dvi-am dvi check check-am \
+installcheck-am installcheck all-recursive-am install-exec-am \
+install-exec install-data-am install-data install-am install \
+uninstall-am uninstall all-redirect all-am all installdirs \
+mostlyclean-generic distclean-generic clean-generic \
+maintainer-clean-generic clean mostlyclean distclean maintainer-clean
 
 
 .man:

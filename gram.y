@@ -1,5 +1,5 @@
 /*
- *   $Id: gram.y,v 1.6 2002/01/02 11:01:11 psavola Exp $
+ *   $Id: gram.y,v 1.9 2004/10/26 05:30:34 psavola Exp $
  *
  *   Authors:
  *    Pedro Roque		<roque@di.fc.ul.pt>
@@ -22,6 +22,7 @@
 extern struct Interface *IfaceList;
 struct Interface *iface = NULL;
 struct AdvPrefix *prefix = NULL;
+struct AdvRoute *route = NULL;
 
 extern char *conf_file;
 extern int num_lines;
@@ -46,6 +47,7 @@ static void yyerror(char *msg);
 
 %token		T_INTERFACE
 %token		T_PREFIX
+%token		T_ROUTE
 
 %token	<str>	STRING
 %token	<num>	NUMBER
@@ -55,9 +57,11 @@ static void yyerror(char *msg);
 %token	<addr>	IPV6ADDR
 %token 		INFINITY
 
+%token		T_IgnoreIfMissing
 %token		T_AdvSendAdvert
 %token		T_MaxRtrAdvInterval
 %token		T_MinRtrAdvInterval
+%token		T_MinDelayBetweenRAs
 %token		T_AdvManagedFlag
 %token		T_AdvOtherConfigFlag
 %token		T_AdvLinkMTU
@@ -65,6 +69,7 @@ static void yyerror(char *msg);
 %token		T_AdvRetransTimer
 %token		T_AdvCurHopLimit
 %token		T_AdvDefaultLifetime
+%token		T_AdvDefaultPreference
 %token		T_AdvSourceLLAddress
 
 %token		T_AdvOnLink
@@ -83,10 +88,14 @@ static void yyerror(char *msg);
 %token		T_HomeAgentPreference
 %token		T_HomeAgentLifetime
 
+%token		T_AdvRoutePreference
+%token		T_AdvRouteLifetime
+
 %token		T_BAD_TOKEN
 
 %type	<str>	name
-%type	<pinfo> prefixdef prefixlist
+%type	<pinfo> optional_prefixlist prefixdef prefixlist
+%type	<rinfo>	optional_routelist routedef routelist
 %type   <num>	number_or_infinity
 
 %union {
@@ -97,6 +106,7 @@ static void yyerror(char *msg);
 	struct in6_addr		*addr;
 	char			*str;
 	struct AdvPrefix	*pinfo;
+	struct AdvRoute		*rinfo;
 };
 
 %%
@@ -114,7 +124,7 @@ ifacedef	: ifacehead '{' ifaceparams  '}' ';'
 			{
 				if (!strcmp(iface2->Name, iface->Name))
 				{
-					log(LOG_ERR, "duplicate interface "
+					flog(LOG_ERR, "duplicate interface "
 						"definition for %s", iface->Name);
 
 					ABORT;
@@ -122,8 +132,14 @@ ifacedef	: ifacehead '{' ifaceparams  '}' ';'
 				iface2 = iface2->next;
 			}			
 
-			if (check_device(sock, iface) < 0)
-				ABORT;
+			if (check_device(sock, iface) < 0) {
+				if (iface->IgnoreIfMissing) {
+					dlog(LOG_DEBUG, 4, "interface %s did not exist, ignoring the interface", iface->Name);
+					goto skip_interface;
+				}
+				else
+					ABORT;
+			}
 			if (setup_deviceinfo(sock, iface) < 0)
 				ABORT;
 			if (check_iface(iface) < 0)
@@ -138,6 +154,7 @@ ifacedef	: ifacehead '{' ifaceparams  '}' ';'
 
 			dlog(LOG_DEBUG, 4, "interface definition for %s is ok", iface->Name);
 
+skip_interface:
 			iface = NULL;
 		};
 
@@ -146,7 +163,7 @@ ifacehead	: T_INTERFACE name
 			iface = malloc(sizeof(struct Interface));
 
 			if (iface == NULL) {
-				log(LOG_CRIT, "malloc failed: %s", strerror(errno));
+				flog(LOG_CRIT, "malloc failed: %s", strerror(errno));
 				ABORT;
 			}
 
@@ -163,15 +180,30 @@ name		: STRING
 		}
 		;
 
-ifaceparams	: optional_ifacevlist prefixlist
+ifaceparams	: optional_ifacevlist optional_prefixlist optional_routelist
 		{
 			iface->AdvPrefixList = $2;
+			iface->AdvRouteList = $3;
 		}
 		;
 
 optional_ifacevlist: /* empty */
 		   | ifacevlist
 		   ;
+
+optional_prefixlist: /* empty */
+		{
+			$$ = NULL;
+		}
+		| prefixlist
+		;
+
+optional_routelist: /* empty */
+		{
+			$$ = NULL;
+		}
+		| routelist
+		;
 
 ifacevlist	: ifacevlist ifaceval
 		| ifaceval
@@ -185,6 +217,10 @@ ifaceval	: T_MinRtrAdvInterval NUMBER ';'
 		{
 			iface->MaxRtrAdvInterval = $2;
 		}
+		| T_MinDelayBetweenRAs NUMBER ';'
+		{
+			iface->MinDelayBetweenRAs = $2;
+		}
 		| T_MinRtrAdvInterval DECIMAL ';'
 		{
 			iface->MinRtrAdvInterval = $2;
@@ -192,6 +228,14 @@ ifaceval	: T_MinRtrAdvInterval NUMBER ';'
 		| T_MaxRtrAdvInterval DECIMAL ';'
 		{
 			iface->MaxRtrAdvInterval = $2;
+		}
+		| T_MinDelayBetweenRAs DECIMAL ';'
+		{
+			iface->MinDelayBetweenRAs = $2;
+		}
+		| T_IgnoreIfMissing SWITCH ';'
+		{
+			iface->IgnoreIfMissing = $2;
 		}
 		| T_AdvSendAdvert SWITCH ';'
 		{
@@ -220,6 +264,10 @@ ifaceval	: T_MinRtrAdvInterval NUMBER ';'
 		| T_AdvDefaultLifetime NUMBER ';'
 		{
 			iface->AdvDefaultLifetime = $2;
+		}
+		| T_AdvDefaultPreference SIGNEDNUMBER ';'
+		{
+			iface->AdvDefaultPreference = $2;
 		}
 		| T_AdvCurHopLimit NUMBER ';'
 		{
@@ -277,7 +325,7 @@ prefixdef	: prefixhead '{' optional_prefixplist '}' ';'
 			if (prefix->AdvPreferredLifetime >
 			    prefix->AdvValidLifetime)
 			{
-				log(LOG_ERR, "AdvValidLifeTime must be "
+				flog(LOG_ERR, "AdvValidLifeTime must be "
 					"greater than AdvPreferredLifetime in %s, line %d", 
 					conf_file, num_lines);
 				ABORT;
@@ -287,7 +335,7 @@ prefixdef	: prefixhead '{' optional_prefixplist '}' ';'
 			{
 				if (get_v4addr(prefix->if6to4, &dst) < 0)
 				{
-					log(LOG_ERR, "interface %s has no IPv4 addresses, disabling 6to4 prefix", prefix->if6to4 );
+					flog(LOG_ERR, "interface %s has no IPv4 addresses, disabling 6to4 prefix", prefix->if6to4 );
 					prefix->enabled = 0;
 				} else
 				{
@@ -306,7 +354,7 @@ prefixhead	: T_PREFIX IPV6ADDR '/' NUMBER
 			prefix = malloc(sizeof(struct AdvPrefix));
 			
 			if (prefix == NULL) {
-				log(LOG_CRIT, "malloc failed: %s", strerror(errno));
+				flog(LOG_CRIT, "malloc failed: %s", strerror(errno));
 				ABORT;
 			}
 
@@ -314,7 +362,7 @@ prefixhead	: T_PREFIX IPV6ADDR '/' NUMBER
 
 			if ($4 > MAX_PrefixLen)
 			{
-				log(LOG_ERR, "invalid prefix length in %s, line %d", conf_file, num_lines);
+				flog(LOG_ERR, "invalid prefix length in %s, line %d", conf_file, num_lines);
 				ABORT;
 			}
 
@@ -325,7 +373,8 @@ prefixhead	: T_PREFIX IPV6ADDR '/' NUMBER
 		;
 
 optional_prefixplist: /* empty */
-		    | prefixplist 
+		| prefixplist 
+		;
 
 prefixplist	: prefixplist prefixparms
 		| prefixparms
@@ -359,6 +408,69 @@ prefixparms	: T_AdvOnLink SWITCH ';'
 		}
 		;
 
+routelist	: routedef
+		{
+			$$ = $1;
+		}
+		| routelist routedef
+		{
+			$2->next = $1;
+			$$ = $2;
+		}
+		;
+
+routedef	: routehead '{' optional_routeplist '}' ';'
+		{
+			$$ = route;
+			route = NULL;
+		}
+		;
+
+
+routehead	: T_ROUTE IPV6ADDR '/' NUMBER
+		{
+			route = malloc(sizeof(struct AdvRoute));
+			
+			if (route == NULL) {
+				flog(LOG_CRIT, "malloc failed: %s", strerror(errno));
+				ABORT;
+			}
+
+			route_init_defaults(route, iface);
+
+			if ($4 > MAX_PrefixLen)
+			{
+				flog(LOG_ERR, "invalid route prefix length in %s, line %d", conf_file, num_lines);
+				ABORT;
+			}
+
+			route->PrefixLen = $4;
+
+			memcpy(&route->Prefix, $2, sizeof(struct in6_addr));
+		}
+		;
+
+
+optional_routeplist: /* empty */
+		| routeplist 
+		;
+
+routeplist	: routeplist routeparms
+		| routeparms
+		;
+
+
+routeparms	: T_AdvRoutePreference SIGNEDNUMBER ';'
+		{
+			route->AdvRoutePreference = $2;
+		}
+		| T_AdvRouteLifetime number_or_infinity ';'
+		{
+			route->AdvRouteLifetime = $2;
+		}
+		;
+
+
 number_or_infinity      : NUMBER
                         {
                                 $$ = $1; 
@@ -385,5 +497,5 @@ static void
 yyerror(char *msg)
 {
 	cleanup();
-	log(LOG_ERR, "%s in %s, line %d: %s", msg, conf_file, num_lines, yytext);
+	flog(LOG_ERR, "%s in %s, line %d: %s", msg, conf_file, num_lines, yytext);
 }

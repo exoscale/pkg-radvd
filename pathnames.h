@@ -1,5 +1,5 @@
 /*
- *   $Id: pathnames.h,v 1.4 2001/12/28 07:25:11 psavola Exp $
+ *   $Id: pathnames.h,v 1.5 2004/08/20 07:22:09 psavola Exp $
  *
  *   Authors:
  *    Pedro Roque		<roque@di.fc.ul.pt>

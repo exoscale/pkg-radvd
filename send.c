@@ -1,5 +1,5 @@
 /*
- *   $Id: send.c,v 1.12 2002/10/28 17:28:37 psavola Exp $
+ *   $Id: send.c,v 1.17 2005/02/15 08:32:06 psavola Exp $
  *
  *   Authors:
  *    Pedro Roque		<roque@di.fc.ul.pt>
@@ -30,13 +30,14 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 	char chdr[CMSG_SPACE(sizeof(struct in6_pktinfo))];
 	struct nd_router_advert *radvert;
 	struct AdvPrefix *prefix;
+	struct AdvRoute *route;
 	unsigned char buff[MSG_SIZE];
 	int len = 0;
 	int err;
 
 	/* Make sure that we've joined the all-routers multicast group */
 	if (check_allrouters_membership(sock, iface) < 0)
-		log(LOG_WARNING, "problem checking all-routers membership on %s", iface->Name);
+		flog(LOG_WARNING, "problem checking all-routers membership on %s", iface->Name);
 
 	dlog(LOG_DEBUG, 3, "sending RA on %s", iface->Name);
 
@@ -47,7 +48,8 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 		dest = (struct in6_addr *)all_hosts_addr;
 		gettimeofday(&tv, NULL);
 
-		iface->last_multicast = tv.tv_sec;
+		iface->last_multicast_sec = tv.tv_sec;
+		iface->last_multicast_usec = tv.tv_usec;
 	}
 	
 	memset((void *)&addr, 0, sizeof(addr));
@@ -69,8 +71,11 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 	/* Mobile IPv6 ext */
 	radvert->nd_ra_flags_reserved   |=
 		(iface->AdvHomeAgentFlag)?ND_RA_FLAG_HOME_AGENT:0;
-	
-	radvert->nd_ra_router_lifetime	= htons(iface->AdvDefaultLifetime);
+
+	/* if forwarding is disabled, send zero router lifetime */
+	radvert->nd_ra_router_lifetime	 =  !check_ip6_forwarding() ? htons(iface->AdvDefaultLifetime) : 0;
+	radvert->nd_ra_flags_reserved   |=
+		(iface->AdvDefaultPreference << ND_OPT_RI_PRF_SHIFT) & ND_OPT_RI_PRF_MASK;
 
 	radvert->nd_ra_reachable  = htonl(iface->AdvReachableTime);
 	radvert->nd_ra_retransmit = htonl(iface->AdvRetransTimer);
@@ -114,6 +119,34 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 		}
 
 		prefix = prefix->next;
+	}
+	
+	route = iface->AdvRouteList;
+
+	/*
+	 *	add route options
+	 */
+
+	while(route)
+	{
+		struct nd_opt_route_info_local *rinfo;
+		
+		rinfo = (struct nd_opt_route_info_local *) (buff + len);
+
+		rinfo->nd_opt_ri_type	     = ND_OPT_ROUTE_INFORMATION;
+		/* XXX: the prefixes are allowed to be sent in smaller chunks as well */
+		rinfo->nd_opt_ri_len	     = 3;
+		rinfo->nd_opt_ri_prefix_len  = route->PrefixLen;
+			
+		rinfo->nd_opt_ri_flags_reserved  =
+			(route->AdvRoutePreference << ND_OPT_RI_PRF_SHIFT) & ND_OPT_RI_PRF_MASK;
+		rinfo->nd_opt_ri_lifetime	= htonl(route->AdvRouteLifetime);
+			
+		memcpy(&rinfo->nd_opt_ri_prefix, &route->Prefix,
+		       sizeof(struct in6_addr));
+		len += sizeof(*rinfo);
+
+		route = route->next;
 	}
 	
 	/*
@@ -162,7 +195,15 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 	if(iface->AdvIntervalOpt)
 	{
 		struct AdvInterval a_ival;
-		uint32_t ival = (iface->MaxRtrAdvInterval * 1000);
+                uint32_t ival;
+                if(iface->MaxRtrAdvInterval < Cautious_MaxRtrAdvInterval){
+                       ival  = ((iface->MaxRtrAdvInterval +
+                                 Cautious_MaxRtrAdvInterval_Leeway ) * 1000);
+
+                }
+                else {
+                       ival  = (iface->MaxRtrAdvInterval * 1000);
+                }
  		a_ival.type	= ND_OPT_RTR_ADV_INTERVAL;
 		a_ival.length	= 1;
 		a_ival.reserved	= 0;
@@ -221,6 +262,6 @@ send_ra(int sock, struct Interface *iface, struct in6_addr *dest)
 	err = sendmsg(sock, &mhdr, 0);
 	
 	if (err < 0) {
-		log(LOG_WARNING, "sendmsg: %s", strerror(errno));
+		flog(LOG_WARNING, "sendmsg: %s", strerror(errno));
 	}
 }

@@ -1,5 +1,5 @@
 /*
- *   $Id: device-linux.c,v 1.8 2002/07/02 06:49:20 psavola Exp $
+ *   $Id: device-linux.c,v 1.12 2005/01/07 19:16:52 lutchann Exp $
  *
  *   Authors:
  *    Lars Fenneberg		<lf@elemental.net>	 
@@ -33,13 +33,14 @@ setup_deviceinfo(int sock, struct Interface *iface)
 {
 	struct ifreq	ifr;
 	struct AdvPrefix *prefix;
+	char zero[HWADDR_MAX];
 	
 	strncpy(ifr.ifr_name, iface->Name, IFNAMSIZ-1);
 	ifr.ifr_name[IFNAMSIZ-1] = '\0';
 
 	if (ioctl(sock, SIOCGIFHWADDR, &ifr) < 0)
 	{
-		log(LOG_ERR, "ioctl(SIOCGIFHWADDR) failed for %s: %s",
+		flog(LOG_ERR, "ioctl(SIOCGIFHWADDR) failed for %s: %s",
 			iface->Name, strerror(errno));
 		return (-1);
 	}
@@ -81,8 +82,14 @@ setup_deviceinfo(int sock, struct Interface *iface)
 	dlog(LOG_DEBUG, 3, "prefix length for %s is %d", iface->Name,
 		iface->if_prefix_len);
 
-	if (iface->if_hwaddr_len != -1)
+	if (iface->if_hwaddr_len != -1) {
 		memcpy(iface->if_hwaddr, ifr.ifr_hwaddr.sa_data, (iface->if_hwaddr_len + 7) >> 3);
+
+		memset(zero, 0, (iface->if_hwaddr_len + 7) >> 3);
+		if (!memcmp(iface->if_hwaddr, zero, (iface->if_hwaddr_len + 7) >> 3))
+			flog(LOG_WARNING, "WARNING, MAC address on %s is all zero!",
+				iface->Name);
+	}
 
 	prefix = iface->AdvPrefixList;
 	while (prefix)
@@ -90,7 +97,7 @@ setup_deviceinfo(int sock, struct Interface *iface)
 		if ((iface->if_prefix_len != -1) &&
 		   (iface->if_prefix_len != prefix->PrefixLen))
 		{
-			log(LOG_WARNING, "prefix length should be %d for %s",
+			flog(LOG_WARNING, "prefix length should be %d for %s",
 				iface->if_prefix_len, iface->Name);
  		}
  			
@@ -113,12 +120,12 @@ int setup_linklocal_addr(int sock, struct Interface *iface)
 
 	if ((fp = fopen(PATH_PROC_NET_IF_INET6, "r")) == NULL)
 	{
-		log(LOG_ERR, "can't open %s: %s", PATH_PROC_NET_IF_INET6,
+		flog(LOG_ERR, "can't open %s: %s", PATH_PROC_NET_IF_INET6,
 			strerror(errno));
 		return (-1);	
 	}
 	
-	while (fscanf(fp, "%32s %02x %02x %02x %02x %15s\n",
+	while (fscanf(fp, "%32s %x %02x %02x %02x %15s\n",
 		      str_addr, &if_idx, &plen, &scope, &dad_status,
 		      devname) != EOF)
 	{
@@ -142,7 +149,7 @@ int setup_linklocal_addr(int sock, struct Interface *iface)
 		}
 	}
 
-	log(LOG_ERR, "no linklocal address configured for %s", iface->Name);
+	flog(LOG_ERR, "no linklocal address configured for %s", iface->Name);
 	fclose(fp);
 	return (-1);
 }
@@ -160,7 +167,7 @@ int setup_allrouters_membership(int sock, struct Interface *iface)
 
 	if (setsockopt(sock, SOL_IPV6, IPV6_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0)
 	{
-		log(LOG_ERR, "can't join ipv6-allrouters on %s", iface->Name);
+		flog(LOG_ERR, "can't join ipv6-allrouters on %s", iface->Name);
 		return (-1);
 	}
 
@@ -178,12 +185,12 @@ int check_allrouters_membership(int sock, struct Interface *iface)
 
 	if ((fp = fopen(PATH_PROC_NET_IGMP6, "r")) == NULL)
 	{
-		log(LOG_ERR, "can't open %s: %s", PATH_PROC_NET_IGMP6,
+		flog(LOG_ERR, "can't open %s: %s", PATH_PROC_NET_IGMP6,
 			strerror(errno));
 		return (-1);	
 	}
 	
-	while ( (ret=fscanf(fp, "%4u %*s %32[0-9A-Fa-f] %*x %*x %*x\n", &if_idx, addr)) != EOF) {
+	while ( (ret=fscanf(fp, "%u %*s %32[0-9A-Fa-f] %*x %*x %*x\n", &if_idx, addr)) != EOF) {
 		if (ret == 2) {
 			if (iface->if_index == if_idx) {
 				if (strncmp(addr, ALL_ROUTERS_MCAST, sizeof(addr)) == 0)
@@ -195,7 +202,7 @@ int check_allrouters_membership(int sock, struct Interface *iface)
 	fclose(fp);
 
 	if (!allrouters_ok) {
-		log(LOG_WARNING, "resetting ipv6-allrouters membership on %s", iface->Name);
+		flog(LOG_WARNING, "resetting ipv6-allrouters membership on %s", iface->Name);
 		setup_allrouters_membership(sock, iface);
 	}	
 
@@ -211,7 +218,7 @@ get_v4addr(const char *ifn, unsigned int *dst)
 
 	if( ( fd = socket(AF_INET,SOCK_DGRAM,0) ) < 0 )
 	{
-		log(LOG_ERR, "create socket for IPv4 ioctl failed for %s: %s",
+		flog(LOG_ERR, "create socket for IPv4 ioctl failed for %s: %s",
 			ifn, strerror(errno));
 		return (-1);
 	}
@@ -223,7 +230,7 @@ get_v4addr(const char *ifn, unsigned int *dst)
 	
 	if (ioctl(fd, SIOCGIFADDR, &ifr) < 0)
 	{
-		log(LOG_ERR, "ioctl(SIOCGIFADDR) failed for %s: %s",
+		flog(LOG_ERR, "ioctl(SIOCGIFADDR) failed for %s: %s",
 			ifn, strerror(errno));
 		close( fd );
 		return (-1);

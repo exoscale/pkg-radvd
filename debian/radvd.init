@@ -5,7 +5,9 @@ DAEMON=/usr/sbin/radvd
 NAME=radvd
 DESC=radvd
 CONFIG=/etc/radvd.conf
-SAVED_SETTINGS=/var/run/radvd.saved
+SAVED_SETTINGS=/var/run/radvd/saved-settings
+PIDFILE=/var/run/radvd/radvd.pid
+OPTIONS="-u radvd -p $PIDFILE"
 
 test -x $DAEMON || exit 0
 
@@ -66,15 +68,19 @@ case "$1" in
         # We must enable IPv6 forwarding for radvd to work
 	echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
 
-	if ! start-stop-daemon --oknodo --start --pidfile /var/run/$NAME.pid \
-		--exec $DAEMON; then
+	# Check for stale pidfile; radvd won't start if one is lying around
+	if [ -f $PIDFILE ] && ! ps `cat  $PIDFILE` > /dev/null; then
+	  rm -f $PIDFILE
+	fi
+	if ! start-stop-daemon --oknodo --start --pidfile $PIDFILE \
+		--exec $DAEMON -- $OPTIONS; then
 	  echo "failed." && exit 1
 	fi
 	echo "$NAME."
 	;;
   stop)
 	echo -n "Stopping $DESC: "
-	start-stop-daemon --oknodo --stop --pidfile /var/run/$NAME.pid \
+	start-stop-daemon --oknodo --stop --pidfile $PIDFILE \
 		--exec $DAEMON
 	restore_settings $SAVED_SETTINGS
 	rm -f $SAVED_SETTINGS
@@ -83,20 +89,20 @@ case "$1" in
   reload|force-reload)
 	echo "Reloading $DESC configuration files."
 	start-stop-daemon --stop --signal HUP --quiet --pidfile \
-	    /var/run/$NAME.pid --exec $DAEMON
+	    $PIDFILE --exec $DAEMON
 	;;
   restart)
 	chkconfig
 	echo -n "Restarting $DESC: "
 	if ! start-stop-daemon --stop --quiet --pidfile \
-		/var/run/$NAME.pid --exec $DAEMON; then
+		$PIDFILE --exec $DAEMON; then
 	  # stop failed, so we were not running
 	  save_settings $SAVED_SETTINGS
 	  echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
 	fi
 	sleep 1
 	start-stop-daemon --start --quiet --pidfile \
-		/var/run/$NAME.pid --exec $DAEMON
+		$PIDFILE --exec $DAEMON -- $OPTIONS
 	echo "$NAME."
 	;;
   *)

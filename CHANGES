@@ -1,4 +1,58 @@
-$Id: CHANGES,v 1.21 2002/10/28 16:53:49 psavola Exp $
+$Id: CHANGES,v 1.36 2005/02/19 18:57:54 lutchann Exp $
+
+02/21/2005	Release 0.7.3.
+
+02/19/2005	Fix crash when reloading config with AdvSendAdvert off.
+
+02/15/2005	Merge a few fixes and improvements from USAGI:
+		 - support microsecond scheduling and fix RA intervals
+		 - send zero router lifetime when forwarding is disabled
+		 - use a more flexible inter-RA delay
+
+01/07/2005	Accomodate interface indexes > 9999, from Hagen Fritsch.
+
+12/15/2004	Advertise zero Router Lifetime when shutting down;
+		implements a SHOULD in RFC2461 section 6.2.5.
+
+10/16/2004	Update Mobile IPv6 to match RFC 3775, from Greg Daley.
+
+08/20/2004	Minor documentation cleanups.
+
+03/09/2004      Implement "IgnoreIfMissing" interface flag, which can be
+                used on interfaces which aren't enabled when radvd starts
+                but will later become available (e.g., Bluetooth) --
+                and then you wish to send HUP to radvd to activate the
+                configs.
+
+02/21/2004      Further cleanups, to fix autoconf/autoheader problems
+                with newer toolchain; mostly by Marko Myllynen.
+
+02/20/2004      Clean up a bit: remove old junk from configure.in,
+                rename "log()" to "flog()" to satisfy newer GCCs,
+                allow underscores in the interface names (the last two
+                fixes already committed earlier).
+                                                                                
+01/19/2004      Make radvd check for forwarding status using procfs on
+                Linux; needed with 2.6 kernels.  Loosely based on
+                a patch by USAGI.
+
+11/21/2003	Add support for Router Preferences and More Specific
+		Routes from Markku Savela <msa@burp.tkv.asdf.org>.
+		NOTE! The specification is not final yet, there will be
+		changes!  (Man page, documentation and radvdump support
+		by Pekka Savola.)
+
+09/11/2003	When starting up, check if the MAC address is all zero
+		(could happen e.g. with bridge interfaces with no attached
+		physical interfaces), and warn if so. For more information,
+		http://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=103469
+
+06/10/2003	When chrooting, check the possible return code 
+		from chdir("/").
+
+03/08/2003	Add patch from MAEDA Naoaki <maeda.naoaki@jp.fujitsu.com>
+		to discard RS's from the unspecied source address with
+		link-layer address option, as required by RFC2461.
 
 10/28/2002	Release 0.7.2:
 		 - add support for VLANs (from USAGI)
