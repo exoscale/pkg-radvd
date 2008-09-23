@@ -1,5 +1,5 @@
 /*
- *   $Id: gram.y,v 1.11 2005/07/05 07:07:45 psavola Exp $
+ *   $Id: gram.y,v 1.19 2007/10/25 19:29:40 psavola Exp $
  *
  *   Authors:
  *    Pedro Roque		<roque@di.fc.ul.pt>
@@ -10,7 +10,7 @@
  *
  *   The license which is distributed with this software in the file COPYRIGHT
  *   applies to this software. If your distribution is missing this file, you
- *   may request it from <lutchann@litech.org>.
+ *   may request it from <pekkas@netcore.fi>.
  *
  */
 %{
@@ -23,6 +23,7 @@ extern struct Interface *IfaceList;
 struct Interface *iface = NULL;
 struct AdvPrefix *prefix = NULL;
 struct AdvRoute *route = NULL;
+struct AdvRDNSS *rdnss = NULL;
 
 extern char *conf_file;
 extern int num_lines;
@@ -48,6 +49,7 @@ static void yyerror(char *msg);
 %token		T_INTERFACE
 %token		T_PREFIX
 %token		T_ROUTE
+%token		T_RDNSS
 
 %token	<str>	STRING
 %token	<num>	NUMBER
@@ -91,15 +93,22 @@ static void yyerror(char *msg);
 %token		T_AdvRoutePreference
 %token		T_AdvRouteLifetime
 
+%token		T_AdvRDNSSPreference
+%token		T_AdvRDNSSOpenFlag
+%token		T_AdvRDNSSLifetime
+
+%token		T_AdvMobRtrSupportFlag
+
 %token		T_BAD_TOKEN
 
 %type	<str>	name
 %type	<pinfo> optional_prefixlist prefixdef prefixlist
 %type	<rinfo>	optional_routelist routedef routelist
+%type	<rdnssinfo> optional_rdnsslist rdnssdef rdnsslist
 %type   <num>	number_or_infinity
 
 %union {
-	int			num;
+	unsigned int		num;
 	int			snum;
 	double			dec;
 	int			bool;
@@ -107,6 +116,7 @@ static void yyerror(char *msg);
 	char			*str;
 	struct AdvPrefix	*pinfo;
 	struct AdvRoute		*rinfo;
+	struct AdvRDNSS		*rdnssinfo;
 };
 
 %%
@@ -181,10 +191,11 @@ name		: STRING
 		}
 		;
 
-ifaceparams	: optional_ifacevlist optional_prefixlist optional_routelist
+ifaceparams	: optional_ifacevlist optional_prefixlist optional_routelist optional_rdnsslist
 		{
 			iface->AdvPrefixList = $2;
 			iface->AdvRouteList = $3;
+			iface->AdvRDNSSList = $4;
 		}
 		;
 
@@ -204,6 +215,13 @@ optional_routelist: /* empty */
 			$$ = NULL;
 		}
 		| routelist
+		;
+		
+optional_rdnsslist: /* empty */
+		{
+			$$ = NULL;
+		}
+		| rdnsslist
 		;
 
 ifacevlist	: ifacevlist ifaceval
@@ -294,10 +312,6 @@ ifaceval	: T_MinRtrAdvInterval NUMBER ';'
 		{
 			iface->HomeAgentPreference = $2;
 		}
-		| T_HomeAgentPreference SIGNEDNUMBER ';'
-		{
-			iface->HomeAgentPreference = $2;
-		}
 		| T_HomeAgentLifetime NUMBER ';'
 		{
 			iface->HomeAgentLifetime = $2;
@@ -306,16 +320,16 @@ ifaceval	: T_MinRtrAdvInterval NUMBER ';'
 		{
 			iface->UnicastOnly = $2;
 		}
+		| T_AdvMobRtrSupportFlag SWITCH ';'
+		{
+			iface->AdvMobRtrSupportFlag = $2;
+		}
 		;
 		
-prefixlist	: prefixdef
+prefixlist	: prefixdef optional_prefixlist
 		{
+			$1->next = $2;
 			$$ = $1;
-		}
-		| prefixlist prefixdef
-		{
-			$2->next = $1;
-			$$ = $2;
 		}
 		;
 
@@ -352,6 +366,7 @@ prefixdef	: prefixhead '{' optional_prefixplist '}' ';'
 
 prefixhead	: T_PREFIX IPV6ADDR '/' NUMBER
 		{
+			struct in6_addr zeroaddr;
 			prefix = malloc(sizeof(struct AdvPrefix));
 			
 			if (prefix == NULL) {
@@ -370,6 +385,45 @@ prefixhead	: T_PREFIX IPV6ADDR '/' NUMBER
 			prefix->PrefixLen = $4;
 
 			memcpy(&prefix->Prefix, $2, sizeof(struct in6_addr));
+
+			memset(&zeroaddr, 0, sizeof(zeroaddr));
+			if (!memcmp($2, &zeroaddr, sizeof(struct in6_addr))) {
+#ifndef HAVE_IFADDRS_H
+				flog(LOG_ERR, "invalid all-zeros prefix in %s, line %d", conf_file, num_lines);
+				ABORT;
+#else
+				dlog(LOG_DEBUG, 5, "all-zeros prefix in %s, line %d, parsing..", conf_file, num_lines);
+				struct ifaddrs *ifap, *ifa;
+				if (getifaddrs(&ifap) != 0)
+					flog(LOG_ERR, "getifaddrs failed: %s", strerror(errno));
+			        for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
+				        struct sockaddr_in6 *s6;
+					char buf[INET6_ADDRSTRLEN];
+					if (strncmp(ifa->ifa_name, iface->Name, IFNAMSIZ))
+						continue;
+                			if (ifa->ifa_addr->sa_family != AF_INET6)
+			                        continue;
+					s6 = (struct sockaddr_in6 *)(ifa->ifa_addr);
+	                		if (IN6_IS_ADDR_LINKLOCAL(&s6->sin6_addr))
+						continue;
+					if (inet_ntop(ifa->ifa_addr->sa_family, (void *)&(s6->sin6_addr), buf, sizeof(buf)) == NULL) {
+						flog(LOG_ERR, "%s: inet_ntop failed in %s, line %d!", ifa->ifa_name, conf_file, num_lines);
+					}
+					else {
+						dlog(LOG_DEBUG, 5, "auto-selected prefix %s on interface %s", buf, ifa->ifa_name);
+						memcpy(&prefix->Prefix, &s6->sin6_addr, sizeof(struct in6_addr));
+						prefix->AdvRouterAddr=1;
+						prefix->AutoSelected=1;
+					}
+				}
+				if (!memcmp(&prefix->Prefix, &zeroaddr, sizeof(struct in6_addr))) {
+					prefix->enabled = 0;
+					flog(LOG_WARNING, "no auto-selected prefix on interface %s, disabling advertisements",  iface->Name);
+				}
+				freeifaddrs(ifap);
+				freeifaddrs(ifa);
+#endif /* ifndef HAVE_IFADDRS_H */
+			}
 		}
 		;
 
@@ -391,7 +445,10 @@ prefixparms	: T_AdvOnLink SWITCH ';'
 		}
 		| T_AdvRouterAddr SWITCH ';'
 		{
-			prefix->AdvRouterAddr = $2;
+			if (prefix->AutoSelected && $2 == 0)
+				flog(LOG_WARNING, "prefix automatically selected, AdvRouterAddr always enabled, ignoring config line %d", num_lines);
+			else  
+				prefix->AdvRouterAddr = $2;
 		}
 		| T_AdvValidLifetime number_or_infinity ';'
 		{
@@ -403,20 +460,20 @@ prefixparms	: T_AdvOnLink SWITCH ';'
 		}
 		| T_Base6to4Interface name ';'
 		{
+			if (prefix->AutoSelected) {
+				flog(LOG_ERR, "automatically selecting the prefix and Base6to4Interface are mutually exclusive");
+				ABORT;
+			} /* fallthrough */
 			dlog(LOG_DEBUG, 4, "using interface %s for 6to4", $2);
 			strncpy(prefix->if6to4, $2, IFNAMSIZ-1);
 			prefix->if6to4[IFNAMSIZ-1] = '\0';
 		}
 		;
 
-routelist	: routedef
+routelist	: routedef optional_routelist
 		{
+			$1->next = $2;
 			$$ = $1;
-		}
-		| routelist routedef
-		{
-			$2->next = $1;
-			$$ = $2;
 		}
 		;
 
@@ -470,7 +527,98 @@ routeparms	: T_AdvRoutePreference SIGNEDNUMBER ';'
 			route->AdvRouteLifetime = $2;
 		}
 		;
+		
+rdnsslist	: rdnssdef optional_rdnsslist
+		{
+			$1->next = $2;
+			$$ = $1;
+		}
+		;
+		
+rdnssdef	: rdnsshead '{' optional_rdnssplist '}' ';'
+		{
+			$$ = rdnss;
+			rdnss = NULL;
+		}
+		;
 
+rdnssaddrs	: rdnssaddrs rdnssaddr
+		| rdnssaddr
+		;
+
+rdnssaddr	: IPV6ADDR
+		{
+			if (!rdnss) {
+				/* first IP found */
+				rdnss = malloc(sizeof(struct AdvRDNSS));
+				
+				if (rdnss == NULL) {
+					flog(LOG_CRIT, "malloc failed: %s", strerror(errno));
+					ABORT;
+				}
+
+				rdnss_init_defaults(rdnss, iface);
+			}
+			
+			switch (rdnss->AdvRDNSSNumber) {
+				case 0:
+					memcpy(&rdnss->AdvRDNSSAddr1, $1, sizeof(struct in6_addr));
+					rdnss->AdvRDNSSNumber++;
+					break;
+				case 1:
+					memcpy(&rdnss->AdvRDNSSAddr2, $1, sizeof(struct in6_addr));
+					rdnss->AdvRDNSSNumber++;
+					break;
+				case 2:
+					memcpy(&rdnss->AdvRDNSSAddr3, $1, sizeof(struct in6_addr));
+					rdnss->AdvRDNSSNumber++;
+					break;
+				default:
+					flog(LOG_CRIT, "Too many addresses in RDNSS section");
+					ABORT;
+			}
+			
+		}
+		;
+		
+rdnsshead	: T_RDNSS rdnssaddrs
+		{
+			if (!rdnss) {
+				flog(LOG_CRIT, "No address specified in RDNSS section");
+				ABORT;
+			}
+		}
+		;
+		
+optional_rdnssplist: /* empty */
+		| rdnssplist 
+		;
+		
+rdnssplist	: rdnssplist rdnssparms
+		| rdnssparms
+		;
+
+
+rdnssparms	: T_AdvRDNSSPreference NUMBER ';'
+		{
+			rdnss->AdvRDNSSPreference = $2;
+		}
+		| T_AdvRDNSSOpenFlag SWITCH ';'
+		{
+			rdnss->AdvRDNSSOpenFlag = $2;
+		}
+		| T_AdvRDNSSLifetime number_or_infinity ';'
+		{
+			if ($2 < iface->MaxRtrAdvInterval && $2 != 0) {
+				flog(LOG_ERR, "AdvRDNSSLifetime must be at least MaxRtrAdvInterval");
+				ABORT;
+			}
+			if ($2 > 2*(iface->MaxRtrAdvInterval))
+				flog(LOG_WARNING, "Warning: AdvRDNSSLifetime <= 2*MaxRtrAdvInterval would allow stale DNS servers to be deleted faster");
+
+			rdnss->AdvRDNSSLifetime = $2;
+		}
+		;
 
 number_or_infinity      : NUMBER
                         {
@@ -492,6 +640,12 @@ void cleanup(void)
 	
 	if (prefix)
 		free(prefix);
+
+	if (route)
+		free(route);
+
+	if (rdnss)
+		free(rdnss);
 }
 
 static void

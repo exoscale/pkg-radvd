@@ -1,3 +1,57 @@
+radvd (1:1.1-3) unstable; urgency=low
+
+  * Check for ipv6 forwarding in initscript (Closes: #498038)
+  * Solved start for /var/run on tmpfs (Closes: #473804)
+
+ -- Ghe Rivero <ghe@debian.org>  Tue, 23 Sep 2008 22:16:20 +0200
+
+radvd (1:1.1-2.1) unstable; urgency=low
+
+  * Non-maintainer upload for the alpha port, with maintainer's approval.
+  * Fix the alignment of the "chdr" buffer in send.c, so that we stop getting
+    unaligned traps that make the process run much less efficiently.  This
+    probably also causes radvd to crash outright on sparc, though this has
+    not been confirmed.  Thanks to Bob Tracy for the patch.  Closes: #456205.
+
+ -- Steve Langasek <vorlon@debian.org>  Thu, 28 Aug 2008 01:19:30 -0700
+
+radvd (1:1.1-2) unstable; urgency=low
+
+  * Migrated to unstable
+
+ -- Ghe Rivero <ghe@debian.org>  Fri, 25 Apr 2008 09:37:13 +0200
+
+radvd (1:1.1-1) experimental; urgency=low
+
+  * New upstream release
+    - Closes: #409600
+    - Closes: #428862
+    - Closes: #429874
+    - Closes: #431665
+  * New Maintainer. (Closes: #427965)
+  * Updated initscript restart option (Closes: #461837)
+  * Removed forwarding in initscript (Closes: #413669)
+
+ -- Ghe Rivero <ghe@debian.org>  Wed,  6 Feb 2008 23:22:22 +0100
+
+radvd (1:1.0-2) unstable; urgency=low
+
+  * Don't enable forwarding in the initscript, as suggested by Marco
+    d'Itri; this should be done via /etc/sysctl.conf (closes: #413669).
+  * README.Debian updated to reflect this.
+  * simple-radvd.conf: Fix netmask (/64 instead of /32).
+
+ -- Andreas Rottmann <rotty@debian.org>  Thu, 07 Jun 2007 18:34:48 +0200
+
+radvd (1:1.0-1) unstable; urgency=low
+
+  * New upstream release (closes: #396441).
+  * Removed patch 01-linux-2.6.patch, as it is integrated upstream.
+  * Bumped standards-version to 3.7.2 (no changes).
+  * Added "INIT INFO" block to initscript.
+
+ -- Andreas Rottmann <rotty@debian.org>  Wed,  1 Nov 2006 16:47:28 +0100
+
 radvd (1:0.8-1) unstable; urgency=low
 
   * New upstream release.

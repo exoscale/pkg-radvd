@@ -1,5 +1,5 @@
 /*
- *   $Id: defaults.h,v 1.12 2005/07/05 08:10:28 psavola Exp $
+ *   $Id: defaults.h,v 1.19 2008/01/24 10:03:17 psavola Exp $
  *
  *   Authors:
  *    Lars Fenneberg		<lf@elemental.net>	 
@@ -9,7 +9,7 @@
  *
  *   The license which is distributed with this software in the file COPYRIGHT
  *   applies to this software. If your distribution is missing this file, you
- *   may request it from <lutchann@litech.org>.
+ *   may request it from <pekkas@netcore.fi>.
  *
  */
 
@@ -62,6 +62,11 @@
 
 #define DFLT_AdvRoutePreference		0 /* medium*/
 
+/* RDNSS */
+#define DFLT_AdvRDNSSPreference				8 /* medium */
+#define DFLT_AdvRDNSSOpenFlag				0
+#define DFLT_AdvRDNSSLifetime(iface)			(iface)->MaxRtrAdvInterval
+
 /* Protocol (RFC2461) constants: */
 
 /* Router constants: */
@@ -103,9 +108,15 @@
 #define MAX_AdvDefaultLifetime		9000
 
 #define	MIN_AdvLinkMTU			1280
+#define	MAX_AdvLinkMTU			131072
 
+#define MIN_AdvReachableTime		100
 #define MAX_AdvReachableTime		3600000 /* 1 hour in milliseconds */
 
+#define MIN_AdvRetransTimer		10
+#define MAX_AdvRetransTimer		3600000
+
+#define MIN_AdvCurHopLimit		2
 #define MAX_AdvCurHopLimit		255
 
 #define MAX_PrefixLen			128
@@ -129,7 +140,7 @@
 #endif
 
 /* de-facto codepoint used by many implementations was '9',
-   the official IANA assignment will be '24' */
+   the official IANA assignment is '24' */
 #undef ND_OPT_ROUTE_INFORMATION
 #define  ND_OPT_ROUTE_INFORMATION	24
 
@@ -148,6 +159,28 @@ struct nd_opt_route_info_local     /* route information */
 #define ND_OPT_RI_PRF_SHIFT	3
 #define ND_OPT_RI_PRF_MASK	(3 << ND_OPT_RI_PRF_SHIFT) /* 00011000 = 0x18 */
 
+#undef ND_OPT_RDNSS_INFORMATION
+#define  ND_OPT_RDNSS_INFORMATION	25
+
+/* */
+struct nd_opt_rdnss_info_local
+{
+	uint8_t   			nd_opt_rdnssi_type;
+	uint8_t   			nd_opt_rdnssi_len;
+	uint16_t   			nd_opt_rdnssi_pref_flag_reserved;
+	uint32_t			nd_opt_rdnssi_lifetime;
+	struct in6_addr		nd_opt_rdnssi_addr1;
+	struct in6_addr		nd_opt_rdnssi_addr2;
+	struct in6_addr		nd_opt_rdnssi_addr3;
+};
+/* pref/flag/reserved field : yyyyx00000000000 (big endian) - 00000000yyyyx000 (little indian); where yyyy = pref, x = flag */
+#if BYTE_ORDER == BIG_ENDIAN
+#define ND_OPT_RDNSSI_PREF_SHIFT	12
+#else
+#define ND_OPT_RDNSSI_PREF_SHIFT	4
+#endif
+#define ND_OPT_RDNSSI_PREF_MASK		(0xf << ND_OPT_RDNSSI_PREF_SHIFT)
+
 /* Flags */
 
 #ifndef ND_RA_FLAG_HOME_AGENT
@@ -156,11 +189,18 @@ struct nd_opt_route_info_local     /* route information */
 #ifndef ND_OPT_PI_FLAG_RADDR
 #define ND_OPT_PI_FLAG_RADDR		0x20
 #endif
+#ifndef ND_OPT_RDNSSI_FLAG_S
+#if BYTE_ORDER == BIG_ENDIAN
+#define ND_OPT_RDNSSI_FLAG_S         0x0800
+#else
+#define ND_OPT_RDNSSI_FLAG_S         0x0008
+#endif
+#endif
 
 /* Configurable values */
 
 #define DFLT_HomeAgentPreference	0
-#define DFLT_HomeAgentLifetime(iface)	DFLT_AdvDefaultLifetime(iface)
+#define DFLT_HomeAgentLifetime(iface)	((iface)->AdvDefaultLifetime)
 
 /* Other */
 
@@ -176,5 +216,17 @@ struct nd_opt_route_info_local     /* route information */
 
 /* #define MAX_RTR_SOLICITATIONS This MAY be ignored by MIPv6 */
 
+/* NEMO extensions, off by default */
+#define DFLT_AdvMobRtrSupportFlag      	0
+
+/* Flags */
+
+#ifndef ND_OPT_HAI_FLAG_SUPPORT_MR
+#if BYTE_ORDER == BIG_ENDIAN
+#define ND_OPT_HAI_FLAG_SUPPORT_MR	0x8000
+#else /* BYTE_ORDER == LITTLE_ENDIAN */
+#define ND_OPT_HAI_FLAG_SUPPORT_MR	0x0080
+#endif
+#endif
 
 #endif
