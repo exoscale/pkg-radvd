@@ -1,3 +1,9 @@
+radvd (1:1.7-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Ghe Rivero <ghe@debian.org>  Wed, 16 Feb 2011 15:27:12 +0100
+
 radvd (1:1.6-1) unstable; urgency=low
 
   * New upstream release
