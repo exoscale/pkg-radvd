@@ -1,3 +1,10 @@
+radvd (1:1.9.1-1.2) unstable; urgency=medium
+
+  * Non-maintainer upload
+  * Use dh-autoreconf in build to support new architectures (Closes: #727278)
+
+ -- Wookey <wookey@wookware.org>  Sat, 05 Jul 2014 00:54:48 +0000
+
 radvd (1:1.9.1-1.1) unstable; urgency=low
 
   * Non-maintainer upload with maintainer approval.
