@@ -1,3 +1,32 @@
+2016/09/24	Release v2.15
+
+2016/09/18	Moved auto prefix code from config file parse to send_ra.
+
+2016/08/08	Merged ARPHRD_6LOWPAN netlink query from <Alexander Aring>
+		Add systemd service file <Craig Andrews>
+
+2016/07/05	Fixed bug in new vs old address list comparison when
+		responding to netlink messages.
+		Release v2.14
+
+2016/04/02	Fix netlink bug where RADVD reacts to RTM_NEWADDR
+		messages when there weren't actually any new addresses
+		to be found.  Those RTM_NEWADDR messages were only
+		sent when NetworkManager was running (which is just
+		about always).
+		Release v2.13
+
+2016/02/01	process.c: fixup ugly overflow check
+		radvd.conf.5.man: minor fixup to 'client' option
+		radvd.conf.5.man: update abro usage
+		gram.y: deprecate abro prefix length
+		device-linux.c: IEEE 802.15.4 musl libc fix
+		send.c: seconds/miliseconds comparison fix
+		send.c: preferred lifetime RFC 4862, 5.5.3 fix
+		defaults.h: remaining lifetime RFC 4862 fix
+		radvdump: show routes with prefixlen > 64
+
+
 2015/04/09	added --without-check option to configure <James Guthrie>
 		Release v2.11
 

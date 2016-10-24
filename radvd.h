@@ -65,8 +65,10 @@ struct Interface {
 
 	struct properties {
 		char name[IFNAMSIZ];	/* interface name */
-		struct in6_addr if_addr;
 		unsigned int if_index;
+		struct in6_addr if_addr; /* the first link local addr */
+		struct in6_addr *if_addrs; /* all the addrs */
+		int addrs_count;
 	} props;
 
 	struct ra_header_info {
@@ -142,8 +144,6 @@ struct AdvPrefix {
 
 	/* 6to4 etc. extensions */
 	char if6to4[IFNAMSIZ];
-	int enabled;
-	int AutoSelected;
 
 	/* Select prefixes from this interface. */
 	char if6[IFNAMSIZ];
@@ -270,10 +270,14 @@ int set_interface_linkmtu(const char *, uint32_t);
 int set_interface_reachtime(const char *, uint32_t);
 int set_interface_retranstimer(const char *, uint32_t);
 int setup_allrouters_membership(int sock, struct Interface *);
-int setup_linklocal_addr(struct Interface *);
-int setup_linklocal_addr(struct Interface *iface);
+int setup_iface_addrs(struct Interface *);
 int update_device_index(struct Interface *iface);
 int update_device_info(int sock, struct Interface *);
+int get_iface_addrs(
+	char const *name,
+	struct in6_addr *if_addr, /* the first link local addr */
+	struct in6_addr **if_addrs /* all the addrs */
+	);
 
 /* interface.c */
 int check_iface(struct Interface *);
@@ -304,6 +308,9 @@ void process(int sock, struct Interface *, unsigned char *, int, struct sockaddr
 int recv_rs_ra(int sock, unsigned char *, struct sockaddr_in6 *, struct in6_pktinfo **, int *, unsigned char*);
 
 /* util.c */
+int countbits(int b);
+int count_mask(struct sockaddr_in6 *m);
+struct in6_addr get_prefix6(struct in6_addr const *addr, struct in6_addr const *mask);
 char * strdupf(char const * format, ...) __attribute__ ((format(printf, 1, 2)));
 double rand_between(double, double);
 int check_dnssl_presence(struct AdvDNSSL *, const char *);
