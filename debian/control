@@ -3,13 +3,14 @@ Section: net
 Priority: optional
 # Maintainer: Ghe Rivero <ghe@debian.org>  https://bugs.debian.org/843502
 Maintainer: Geert Stappers <stappers@debian.org>
-Standards-Version: 3.9.8
+Standards-Version: 4.1.3
 Build-Depends: dh-autoreconf, debhelper (>= 9), flex, bison,
  pkg-config,
  libdaemon-dev,
  check
 XS-Testsuite: autopkgtest
-Vcs-Git: http://stappers.it/git/pkg-radvd
+Vcs-Git: https://salsa.debian.org/debian/radvd
+Vcs-Browser: https://salsa.debian.org/debian/radvd
 Homepage: http://www.litech.org/radvd/
 
 Package: radvd
