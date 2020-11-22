@@ -122,7 +122,8 @@ am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
  configure.lineno config.status.lineno
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = config.h
-CONFIG_CLEAN_FILES = radvd.service redhat/radvd.spec
+CONFIG_CLEAN_FILES = radvd.service redhat/systemd/radvd.spec \
+	redhat/SysV/radvd.spec
 CONFIG_CLEAN_VPATH_FILES =
 LIBRARIES = $(noinst_LIBRARIES)
 AR = ar
@@ -446,9 +447,11 @@ TEST_LOG_DRIVER = $(SHELL) $(top_srcdir)/test-driver
 TEST_LOG_COMPILE = $(TEST_LOG_COMPILER) $(AM_TEST_LOG_FLAGS) \
 	$(TEST_LOG_FLAGS)
 am__DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/config.h.in \
-	$(srcdir)/radvd.service.in $(top_srcdir)/redhat/radvd.spec.in \
-	README TODO compile config.guess config.sub depcomp gram.c \
-	gram.h install-sh missing scanner.c test-driver ylwrap
+	$(srcdir)/radvd.service.in \
+	$(top_srcdir)/redhat/SysV/radvd.spec.in \
+	$(top_srcdir)/redhat/systemd/radvd.spec.in README TODO compile \
+	config.guess config.sub depcomp gram.c gram.h install-sh \
+	missing scanner.c test-driver ylwrap
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -688,11 +691,14 @@ EXTRA_DIST = \
 	radvd.conf.example \
 	radvd.service.in \
 	radvdump.8.man \
-	redhat/radvd-tmpfs.conf \
-	redhat/radvd.conf.empty \
-	redhat/radvd.init \
-	redhat/radvd.spec \
-	redhat/radvd.sysconfig \
+	redhat/SysV/radvd-tmpfs.conf \
+	redhat/SysV/radvd.conf.empty \
+	redhat/SysV/radvd.init \
+	redhat/SysV/radvd.spec \
+	redhat/SysV/radvd.sysconfig \
+	redhat/systemd/radvd-tmpfs.conf \
+	redhat/systemd/radvd.service \
+	redhat/systemd/radvd.spec \
 	test/check.c \
 	test/print_safe_buffer.c \
 	test/print_safe_buffer.h \
@@ -806,7 +812,9 @@ distclean-hdr:
 	-rm -f config.h stamp-h1
 radvd.service: $(top_builddir)/config.status $(srcdir)/radvd.service.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
-redhat/radvd.spec: $(top_builddir)/config.status $(top_srcdir)/redhat/radvd.spec.in
+redhat/systemd/radvd.spec: $(top_builddir)/config.status $(top_srcdir)/redhat/systemd/radvd.spec.in
+	cd $(top_builddir) && $(SHELL) ./config.status $@
+redhat/SysV/radvd.spec: $(top_builddir)/config.status $(top_srcdir)/redhat/SysV/radvd.spec.in
 	cd $(top_builddir) && $(SHELL) ./config.status $@
 
 clean-noinstLIBRARIES:

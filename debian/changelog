@@ -1,3 +1,19 @@
+radvd (1:2.18-1) unstable; urgency=medium
+
+  [ Nick Huber ]
+  * ConditionPathExists=/etc/radvd.conf. Closes: #929357, #646723
+
+  [ Geert Stappers ]
+  * New upstream release
+  * Removed a patch that got upstreamed
+  * Needed to include upstream signing-key.asc
+  * radvd.service PIDFile now in /run. Closes: #954433
+  * echo 10 > debian/compat
+  * d/radvd.install: Upstream installs the service unit at wanted place
+  * d/.gitignore updated
+
+ -- Geert Stappers <stappers@debian.org>  Sun, 22 Nov 2020 16:13:18 +0100
+
 radvd (1:2.17-2) unstable; urgency=medium
 
   [ Ondřej Nový ]
