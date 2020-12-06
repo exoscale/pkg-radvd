@@ -1,3 +1,12 @@
+radvd (1:2.18-2) unstable; urgency=medium
+
+  * rules: Removed dh_install override
+  * control: Removed autoreconf build-dependency.
+  * radvd.install: Re-added location of service unit. Closes: #975833
+  * radvd.postinst: user radvd home dir in /run,  not in /var/run
+
+ -- Geert Stappers <stappers@debian.org>  Sun, 06 Dec 2020 14:16:41 +0100
+
 radvd (1:2.18-1) unstable; urgency=medium
 
   [ Nick Huber ]

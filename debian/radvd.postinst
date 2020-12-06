@@ -4,9 +4,9 @@ set -e
 
 if [ "$1" = configure ]; then
   if ! getent passwd radvd >/dev/null; then
-    adduser --quiet --system --no-create-home --home /var/run/radvd radvd
+    adduser --quiet --system --no-create-home --home /run/radvd radvd
   fi
-  for i in /var/run/radvd; do
+  for i in /run/radvd; do
     if dpkg-statoverride --list $i >/dev/null; then
       dpkg-statoverride --remove $i
     fi

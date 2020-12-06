@@ -16,8 +16,5 @@ override_dh_auto_clean:
 	rm -f gram.c gram.h scanner.c
 	rm -f privsep.c
 
-override_dh_install:
-	dh_install --list-missing
-
 override_dh_installinit:
 	dh_installinit --error-handler=true
