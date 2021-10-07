@@ -1,3 +1,9 @@
+radvd (1:2.18-3build1) impish; urgency=medium
+
+  * No-change rebuild to build packages with zstd compression.
+
+ -- Matthias Klose <doko@ubuntu.com>  Thu, 07 Oct 2021 12:23:29 +0200
+
 radvd (1:2.18-3) unstable; urgency=medium
 
   [ Adilson dos Santos Dantas ]
