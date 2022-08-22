@@ -1,3 +1,9 @@
+radvd (1:2.17-2+exo1) UNRELEASED; urgency=medium
+
+  * Apply upstream commmit 19b56f52720d1a0d0f4e0a8f3f595153177d8d67
+
+ -- Alexandros Afentoulis <alexandros.afentoulis@exoscale.ch>  Mon, 22 Aug 2022 12:25:13 +0300
+
 radvd (1:2.17-2) unstable; urgency=medium
 
   [ Ondřej Nový ]
